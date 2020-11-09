@@ -22,7 +22,7 @@ colors = {
 
 # assume you have a "long-form" data frame
 # see https://plotly.com/python/px-arguments/ for more options
-df = pd.read_pickle('data\DED_2020.pickle')
+df = pd.read_pickle('data/DED_2020.pickle')
 
 df_winner = df['winner'].value_counts().rename_axis('Team').reset_index(name='Counts')
 
