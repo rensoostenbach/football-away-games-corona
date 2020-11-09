@@ -34,8 +34,6 @@ app.layout = html.Div(children=[
     }
              ),
 
-    html.Div(children=f"{API_SOCCER}"),
-
     dcc.Graph(
         id='example-graph',
         figure=fig
