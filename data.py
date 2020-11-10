@@ -16,7 +16,7 @@ seasons = [2018, 2019, 2020]
 sched = BlockingScheduler()
 
 
-@sched.scheduled_job('cron', day_of_week='tue', hour=12)
+@sched.scheduled_job('cron', day_of_week='tue', hour=13)
 def scheduled_job():
     # Retrieving the data
     for comp in competitions:
