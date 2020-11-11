@@ -110,7 +110,7 @@ def update_winner_graph(league, year):
 def update_teamwinner_graph(league, year, teamname):
     df = pd.read_pickle(f'data/{league}_{year}.pickle')
 
-    all_teams = df['homeTeamName'].unique()  # Assuming all teams have played home at least once
+    all_teams = np.sort(df['homeTeamName'].unique())  # Assuming all teams have played home at least once
 
     dff = df[['winner', 'homeTeamName', 'awayTeamName']]
     df_teams = pd.DataFrame(0, index=df['winner'].unique(), columns=all_teams)
