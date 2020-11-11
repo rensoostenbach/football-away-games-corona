@@ -12,4 +12,4 @@ def fill_df_teams(df, df_teams):
             df_teams[row[1]]['DRAW'] += 1
             df_teams[row[2]]['DRAW'] += 1
 
-        return df_teams
+    return df_teams
