@@ -86,7 +86,7 @@ app.layout = html.Div([
 )
 def set_teamselector_options(league, year):
     df = pd.read_pickle(f'data/{league}_{year}.pickle')
-    return [{'label': team, 'value': team} for team in df['homeTeamName'].unique()]
+    return [{'label': team, 'value': team} for team in np.sort(df['homeTeamName'].unique())]
 
 @app.callback(
     Output('winner_graph', 'figure'),
