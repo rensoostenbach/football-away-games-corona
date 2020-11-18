@@ -6,7 +6,7 @@ from dash.dependencies import Input, Output
 import plotly.express as px
 import pandas as pd
 import numpy as np
-import os
+import json
 from functions import fill_df_teams
 
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.LUX])
@@ -43,13 +43,14 @@ sidebar = html.Div(
             [
                 dbc.Label('Pre/Post corona or separate seasons'),
                 dbc.RadioItems(
-                    id='prepostcorona',
+                    id='prepost_or_year',
                     options=[
                         {'label': 'Pre/Post corona', 'value': 'prepost'},
-                        {'label': 'Separate seasons', 'value': 'separate'}
+                        {'label': 'Separate seasons', 'value': 'year'}
                     ],
                     value='prepost',
-                    custom=False
+                    custom=False,
+                    style={'display': 'block'}
                 ),
             ]
         ),
@@ -71,22 +72,39 @@ sidebar = html.Div(
                 ),
             ]
         ),
-        dbc.FormGroup(
-            [
-                # TODO: Preprocess the pre and post corona datasets, and think of a way how to combine different seasons/leagues
-                dbc.Label('Year selection'),
-                dbc.RadioItems(
-                    id='yearselector',
-                    options=[
-                        {'label': '2018-2019', 'value': '2018'},
-                        {'label': '2019-2020', 'value': '2019'},
-                        {'label': '2020-2021', 'value': '2020'}
-                    ],
-                    value='2020',
-                    custom=False
-                ),
-            ]
-        ),
+        html.Div(
+            dbc.FormGroup(
+                [
+                    # TODO: Think of a way how to combine different seasons/leagues
+                    dbc.Label('Pre / post corona'),
+                    dbc.RadioItems(
+                        id='prepostselector',
+                        options=[
+                            {'label': 'Pre corona', 'value': 'pre'},
+                            {'label': 'Post corona', 'value': 'post'}
+                        ],
+                        value='pre',
+                        custom=False
+                    ),
+                ]
+            ), id='prepostdiv'),
+        html.Div(
+            dbc.FormGroup(
+                [
+                    # TODO: Preprocess the pre and post corona datasets, and think of a way how to combine different seasons/leagues
+                    dbc.Label('Year selection'),
+                    dbc.RadioItems(
+                        id='yearselector',
+                        options=[
+                            {'label': '2018-2019', 'value': '2018'},
+                            {'label': '2019-2020', 'value': '2019'},
+                            {'label': '2020-2021', 'value': '2020'}
+                        ],
+                        value='2020',
+                        custom=False
+                    ),
+                ]
+            ), id='yeardiv'),
         dbc.FormGroup(
             [
                 # TODO: Preprocess the pre and post corona datasets, and think of a way how to combine different seasons/leagues
@@ -105,37 +123,54 @@ content = html.Div([
         }
                 ),
 
-        html.Div(children='''
-        This web app will show visualisations of how football has changed (or not) due to the lack of fans in stadiums.
-    ''', style={
+        html.P('This web app will show visualisations of how football has changed (or not) '
+               'due to the lack of fans in stadiums.', style={
             'textAlign': 'center',
         }
-                 )]),
+                 ),
+        html.Hr()]),
 
-    html.Div(
-        dcc.Graph(
-            id='winner_graph',
-        )),
+    html.Div([dcc.Markdown(id='winner_text',
+                          style={'text-align': 'center'}),
+             dcc.Graph(
+                 id='winner_graph',
+             )]),
 
-    html.Div(
-        dcc.Graph(
-            id='teamwinner_graph',
+    html.Div([
+        html.Div(
+            dcc.Markdown(id='teamwinner_text',
+                         style={'text-align': 'center'})
+        ),
+        html.Div(
+            dcc.Graph(
+                id='teamwinner_graph',
+            )
+
         )
+    ], id='teamwinnerdiv'
+
     )
-],id="page-content", style=CONTENT_STYLE)
+
+], id="page-content", style=CONTENT_STYLE)
 
 app.layout = html.Div([sidebar, content])
 
+
 @app.callback(
-    Output(F)
-)
+    Output('prepostdiv', 'style'),
+    Output('yeardiv', 'style'),
+    [Input('prepost_or_year', 'value')])
+def toggle_prepost_year(value):
+    if value == 'prepost':
+        return {'display': 'block'}, {'display': 'none'}
+    elif value == 'year':
+        return {'display': 'none'}, {'display': 'block'}
 
 
 @app.callback(
     Output('teamselector', 'options'),
     [Input('leagueselector', 'value'),
-     Input('yearselector', 'value')]
-)
+     Input('yearselector', 'value')])
 def set_teamselector_options(league, year):
     df = pd.read_pickle(f'data/{league}_{year}.pickle')
     return [{'label': team, 'value': team} for team in np.sort(df['homeTeamName'].unique())]
@@ -143,37 +178,69 @@ def set_teamselector_options(league, year):
 
 @app.callback(
     Output('winner_graph', 'figure'),
-    [Input('leagueselector', 'value'),
-     Input('yearselector', 'value')]
-)
-def update_winner_graph(league, year):
-    df = pd.read_pickle(f'data/{league}_{year}.pickle')
+    Output('winner_text', 'children'),
+    [Input('prepost_or_year', 'value'),
+     Input('prepostselector', 'value'),
+     Input('leagueselector', 'value'),
+     Input('yearselector', 'value')])
+def update_winner_graph(prepost_or_year, prepost, league, year):
+    df = pd.read_pickle('data/all_data.pickle')
+
+    if prepost_or_year == 'prepost':
+        df = df[(df['corona'] == prepost) & (df['league'] == league)]
+    elif prepost_or_year == 'year':
+        df = df[(df['year'] == year) & (df['league'] == league)]
 
     df_winner = df['winner'].value_counts().rename_axis('Team').reset_index(name='Counts')
     fig = px.bar(df_winner, x="Team", y="Counts", barmode="group")
 
-    return fig
+    winner_text = f'## Total number of home wins, away wins and draws in the {league}'
+
+    return fig, winner_text
+
+
+@app.callback(
+    Output('teamwinnerdiv', 'style'),
+    [Input('teamselector', 'value')])
+def update_teamwinner_div(value):
+    if not value:
+        return {'display': 'none'}
+    else:
+        return {'display': 'block'}
 
 
 @app.callback(
     Output('teamwinner_graph', 'figure'),
-    [Input('leagueselector', 'value'),
+    Output('teamwinner_text', 'children'),
+    [Input('prepost_or_year', 'value'),
+     Input('prepostselector', 'value'),
+     Input('leagueselector', 'value'),
      Input('yearselector', 'value'),
-     Input('teamselector', 'value')]
-)
-def update_teamwinner_graph(league, year, teamname):
-    df = pd.read_pickle(f'data/{league}_{year}.pickle')
+     Input('teamselector', 'value')])
+def update_teamwinner_graph(prepost_or_year, prepost, league, year, teamname):
+    if not teamname:
+        return {}, ''
+    else:
+        df = pd.read_pickle('data/all_data.pickle')
 
-    all_teams = np.sort(df['homeTeamName'].unique())  # Assuming all teams have played home at least once
+        if prepost_or_year == 'prepost':
+            df = df[(df['corona'] == prepost) & (df['league'] == league)]
+        elif prepost_or_year == 'year':
+            df = df[(df['year'] == year) & (df['league'] == league)]
 
-    dff = df[['winner', 'homeTeamName', 'awayTeamName']]
-    df_teams = pd.DataFrame(0, index=df['winner'].unique(), columns=all_teams)
-    df_teams = fill_df_teams(dff, df_teams)
+        all_teams = np.sort(df['homeTeamName'].unique())  # Assuming all teams have played home at least once
 
-    teamwinner_graph = px.bar(df_teams, x=df_teams[teamname].index, y=df_teams[teamname].tolist(), barmode="group")
-    teamwinner_graph.update_xaxes(title='Home/away win or draw')
-    teamwinner_graph.update_yaxes(title='Amount of home/away wins or draw for selected team')
-    return teamwinner_graph
+        dff = df[['winner', 'homeTeamName', 'awayTeamName']]
+        df_teams = pd.DataFrame(0, index=df['winner'].unique(), columns=all_teams)
+        df_teams = fill_df_teams(dff, df_teams)
+
+        teamwinner_graph = px.bar(df_teams, x=df_teams[teamname].index, y=df_teams[teamname].tolist(), barmode="group")
+        teamwinner_graph.update_xaxes(title='Home/away win or draw')
+        teamwinner_graph.update_yaxes(title=f'Amount of home/away wins or draw for {teamname}')
+
+        teamwinner_text = f'### Home wins, away wins and draws for {teamname}'
+
+        return teamwinner_graph, teamwinner_text
 
 
 if __name__ == '__main__':
