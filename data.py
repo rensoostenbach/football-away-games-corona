@@ -3,6 +3,7 @@ import json
 import os
 import pandas as pd
 import time
+import numpy as np
 
 API_SOCCER = os.environ.get("API_SOCCER")
 connection = http.client.HTTPConnection('api.football-data.org')
@@ -43,3 +44,77 @@ for comp in competitions:
 
         # Sleep 10 seconds, because we only have 10 calls per minute
         time.sleep(10)
+
+# Preprocessing 2018
+# Eredivisie, Premier League, Bundesliga, Ligue 1, Serie A, Primera Divison
+competitions = ['DED', 'PL', 'BL1', 'FL1', 'SA', 'PD']
+seasons = [2018]
+
+for comp in competitions:
+    for season in seasons:
+        df = pd.read_pickle(f"data/{comp}_{season}.pickle")
+        df["corona"] = "pre"
+        df.to_pickle(f"data/{comp}_{season}.pickle")
+
+# Preprocessing 2019
+# Eredivisie, Premier League, Bundesliga, Ligue 1, Serie A, Primera Divison
+competitions = ['DED', 'PL', 'BL1', 'FL1', 'SA', 'PD']
+seasons = [2019]
+
+# Dates manually looked up on worldfootball.net
+
+for comp in competitions:
+    for season in seasons:
+        df = pd.read_pickle(f"data/{comp}_{season}.pickle")
+        df["utcDate"] = pd.to_datetime(df["utcDate"]).dt.tz_localize(None)
+        if comp == 'DED':
+            df["corona"] = "pre"
+            df.to_pickle(f"data/{comp}_{season}.pickle")
+        elif comp == "PL":
+            #1st of March, last game with fans
+            df["corona"]= np.where(df["utcDate"] <= pd.Timestamp("2020-03-01").floor('D'),"pre","post")
+            df.to_pickle(f"data/{comp}_{season}.pickle")
+        elif comp == "BL1":
+            #8th of March, last game with fans
+            df["corona"]= np.where(df["utcDate"] <= pd.Timestamp("2020-03-08").floor('D'),"pre","post")
+            df.to_pickle(f"data/{comp}_{season}.pickle")
+        elif comp == "FL1":
+            df["corona"] = "pre"
+            df.to_pickle(f"data/{comp}_{season}.pickle")
+        elif comp == "SA":
+            #1st of March, last game with fans
+            df["corona"]= np.where(df["utcDate"] <= pd.Timestamp("2020-03-01").floor('D'),"pre","post")
+            df.to_pickle(f"data/{comp}_{season}.pickle")
+        elif comp == "PD":
+            #8th of March, last game with fans
+            df["corona"]= np.where(df["utcDate"] <= pd.Timestamp("2020-03-08").floor('D'),"pre","post")
+            df.to_pickle(f"data/{comp}_{season}.pickle")
+
+# Preprocessing 2020
+# Eredivisie, Premier League, Bundesliga, Ligue 1, Serie A, Primera Divison
+competitions = ['DED', 'PL', 'BL1', 'FL1', 'SA', 'PD']
+seasons = [2020]
+
+for comp in competitions:
+    for season in seasons:
+        df = pd.read_pickle(f"data/{comp}_{season}.pickle")
+        df["corona"] = "post"
+        df.to_pickle(f"data/{comp}_{season}.pickle")
+
+# Combining all datasets
+# Eredivisie, Premier League, Bundesliga, Ligue 1, Serie A, Primera Divison
+competitions = ['DED', 'PL', 'BL1', 'FL1', 'SA', 'PD']
+seasons = [2018,2019,2020]
+
+final_df = pd.DataFrame()
+
+for comp in competitions:
+    for season in seasons:
+        df = pd.read_pickle(f"data/{comp}_{season}.pickle")
+        df["utcDate"] = pd.to_datetime(df["utcDate"]).dt.tz_localize(None)
+        df["league"] = comp
+        df["year"] = season
+        final_df = final_df.append(df)
+
+final_df.to_pickle("data/all_data.pickle")
+final_df.to_csv("data/all_data.csv")
