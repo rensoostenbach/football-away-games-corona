@@ -3,10 +3,10 @@ import dash_core_components as dcc
 import dash_bootstrap_components as dbc
 import dash_html_components as html
 from dash.dependencies import Input, Output
-import plotly.express as px
+import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
-import json
+from dash.exceptions import PreventUpdate
 from functions import fill_df_teams, read_data
 
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.LUX])
@@ -31,6 +31,9 @@ CONTENT_STYLE = {
     "margin-right": "2rem",
     "padding": "2rem 1rem",
 }
+
+# colors for graphs
+COLORS = ['mediumseagreen', 'lightslategray', 'indianred']
 
 sidebar = html.Div(
     [
@@ -76,22 +79,6 @@ sidebar = html.Div(
             dbc.FormGroup(
                 [
                     # TODO: Think of a way how to combine different seasons/leagues
-                    dbc.Label('Pre / post corona'),
-                    dbc.RadioItems(
-                        id='prepostselector',
-                        options=[
-                            {'label': 'Pre corona', 'value': 'pre'},
-                            {'label': 'Post corona', 'value': 'post'}
-                        ],
-                        value='pre',
-                        custom=False
-                    ),
-                ]
-            ), id='prepostdiv'),
-        html.Div(
-            dbc.FormGroup(
-                [
-                    # TODO: Preprocess the pre and post corona datasets, and think of a way how to combine different seasons/leagues
                     dbc.Label('Year selection'),
                     dbc.RadioItems(
                         id='yearselector',
@@ -130,11 +117,17 @@ content = html.Div([
                  ),
         html.Hr()]),
 
-    html.Div([dcc.Markdown(id='winner_text',
+    html.Div([dcc.Markdown(id='single_winner_text',
                           style={'text-align': 'center'}),
              dcc.Graph(
-                 id='winner_graph',
-             )]),
+                 id='single_winner_graph',
+             )], id='single_winner_div'),
+
+    html.Div([dcc.Markdown(id='double_winner_text',
+                           style={'text-align': 'center'}),
+              dcc.Graph(id='double_winner_graph_pre', style={'display': 'inline-block'}),
+              dcc.Graph(id='double_winner_graph_post', style={'display': 'inline-block'})
+              ], id='double_winner_div'),
 
     html.Div([
         html.Div(
@@ -147,51 +140,99 @@ content = html.Div([
             )
 
         )
-    ], id='teamwinnerdiv'
-
-    )
-
-], id="page-content", style=CONTENT_STYLE)
+    ], id='teamwinnerdiv')]
+    , id="page-content", style=CONTENT_STYLE)
 
 app.layout = html.Div([sidebar, content])
 
 
 @app.callback(
-    Output('prepostdiv', 'style'),
     Output('yeardiv', 'style'),
     [Input('prepost_or_year', 'value')])
-def toggle_prepost_year(value):
-    if value == 'prepost':
-        return {'display': 'block'}, {'display': 'none'}
-    elif value == 'year':
-        return {'display': 'none'}, {'display': 'block'}
+def toggle_prepost_year(prepost_or_year):
+    if prepost_or_year == 'prepost':
+        return {'display': 'none'}
+    elif prepost_or_year == 'year':
+        return {'display': 'block'}
 
 
 @app.callback(
     Output('teamselector', 'options'),
-    [Input('leagueselector', 'value'),
+    [Input('prepost_or_year', 'value'),
+     Input('leagueselector', 'value'),
      Input('yearselector', 'value')])
-def set_teamselector_options(league, year):
-    df = pd.read_pickle(f'data/{league}_{year}.pickle')
+def set_teamselector_options(prepost_or_year, league, year):
+    if prepost_or_year == 'prepost':
+        df_pre, df_post = read_data(prepost_or_year, league, year)
+        df = pd.concat([df_pre, df_post])
+    elif prepost_or_year == 'year':
+        df = read_data(prepost_or_year, league, year)
+
     return [{'label': team, 'value': team} for team in np.sort(df['homeTeamName'].unique())]
 
 
 @app.callback(
-    Output('winner_graph', 'figure'),
-    Output('winner_text', 'children'),
+    Output('single_winner_div', 'style'),
+    Output('double_winner_div', 'style'),
+    [Input('prepost_or_year', 'value')])
+def update_winner_styles(prepost_or_year):
+    if prepost_or_year == 'prepost':
+        style_double_winner_div = {'display': 'block'}
+        style_single_winner_div = {'display': 'none'}
+        return style_single_winner_div, style_double_winner_div
+    elif prepost_or_year == 'year':
+        style_single_winner_div = {'display': 'block'}
+        style_double_winner_div = {'display': 'none'}
+        return style_single_winner_div, style_double_winner_div
+
+
+
+@app.callback(
+    Output('single_winner_graph', 'figure'),
+    Output('single_winner_text', 'children'),
     [Input('prepost_or_year', 'value'),
-     Input('prepostselector', 'value'),
      Input('leagueselector', 'value'),
      Input('yearselector', 'value')])
-def update_winner_graph(prepost_or_year, prepost, league, year):
-    df = read_data(prepost_or_year, prepost, league, year)
+def update_single_winner_graph(prepost_or_year, league, year):
+    if prepost_or_year == 'prepost':
+        raise PreventUpdate
 
-    df_winner = df['winner'].value_counts().rename_axis('Team').reset_index(name='Counts')
-    fig = px.bar(df_winner, x="Team", y="Counts", barmode="group")
+    df = read_data(prepost_or_year, league, year)
+    df_winner = df['winner'].value_counts().sort_index(ascending=False)\
+        .rename_axis('Winning team').reset_index(name='Counts')
+    fig = go.Figure(data=[go.Bar(x=df_winner['Winning team'], y=df_winner['Counts'],
+                                     marker_color=COLORS)])
 
-    winner_text = f'## Total number of home wins, away wins and draws in the {league}'
+    winner_text = f'## Total number of home wins, draws and away wins in the {league}'
 
     return fig, winner_text
+
+
+@app.callback(
+    Output('double_winner_graph_pre', 'figure'),
+    Output('double_winner_graph_post', 'figure'),
+    Output('double_winner_text', 'children'),
+    [Input('prepost_or_year', 'value'),
+     Input('leagueselector', 'value'),
+     Input('yearselector', 'value')])
+def update_double_winner_graph(prepost_or_year, league, year):
+    if prepost_or_year == 'year':
+        raise PreventUpdate
+
+    df_pre, df_post = read_data(prepost_or_year, league, year)
+    df_winner_pre = df_pre['winner'].value_counts().sort_index(ascending=False)\
+        .rename_axis('Winning team').reset_index(name='Counts')
+    df_winner_post = df_post['winner'].value_counts().sort_index(ascending=False)\
+        .rename_axis('Winning team').reset_index(name='Counts')
+
+    fig_pre = go.Figure(data=[go.Bar(x=df_winner_pre['Winning team'], y=df_winner_pre['Counts'],
+                                     marker_color=COLORS)])
+    fig_post = go.Figure(data=[go.Bar(x=df_winner_post['Winning team'], y=df_winner_post['Counts'],
+                                      marker_color=COLORS)])
+
+    winner_text = f'## Total number of home wins, draws and away wins in the {league} before and after corona.'
+
+    return fig_pre, fig_post, winner_text
 
 
 @app.callback(
@@ -208,27 +249,33 @@ def update_teamwinner_div(value):
     Output('teamwinner_graph', 'figure'),
     Output('teamwinner_text', 'children'),
     [Input('prepost_or_year', 'value'),
-     Input('prepostselector', 'value'),
      Input('leagueselector', 'value'),
      Input('yearselector', 'value'),
      Input('teamselector', 'value')])
-def update_teamwinner_graph(prepost_or_year, prepost, league, year, teamname):
+def update_teamwinner_graph(prepost_or_year, league, year, teamname):
     if not teamname:
         return {}, ''
     else:
-        df = read_data(prepost_or_year, prepost, league, year)
+        if prepost_or_year == 'prepost':
+            df_pre, df_post = read_data(prepost_or_year, league, year)
+            df = pd.concat([df_pre, df_post])
+        elif prepost_or_year == 'year':
+            df = read_data(prepost_or_year, league, year)
 
         all_teams = np.sort(df['homeTeamName'].unique())  # Assuming all teams have played home at least once
 
         dff = df[['winner', 'homeTeamName', 'awayTeamName']]
-        df_teams = pd.DataFrame(0, index=df['winner'].unique(), columns=all_teams)
+        df_teams = pd.DataFrame(0, index=['HOME_TEAM', 'DRAW', 'AWAY_TEAM'], columns=list(all_teams))
         df_teams = fill_df_teams(dff, df_teams)
 
-        teamwinner_graph = px.bar(df_teams, x=df_teams[teamname].index, y=df_teams[teamname].tolist(), barmode="group")
+        teamwinner_graph = go.Figure(data=[go.Bar(x=df_teams[teamname].index, y=df_teams[teamname].tolist(),
+                                                  marker_color=COLORS)])
+
+        # teamwinner_graph = px.bar(df_teams, x=df_teams[teamname].index, y=df_teams[teamname].tolist(), barmode="group")
         teamwinner_graph.update_xaxes(title='Home/away win or draw')
         teamwinner_graph.update_yaxes(title=f'Amount of home/away wins or draw for {teamname}')
 
-        teamwinner_text = f'### Home wins, away wins and draws for {teamname}'
+        teamwinner_text = f'### Home wins, draws and away wins for {teamname}'
 
         return teamwinner_graph, teamwinner_text
 
