@@ -7,7 +7,7 @@ import plotly.express as px
 import pandas as pd
 import numpy as np
 import json
-from functions import fill_df_teams
+from functions import fill_df_teams, read_data
 
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.LUX])
 
@@ -184,12 +184,7 @@ def set_teamselector_options(league, year):
      Input('leagueselector', 'value'),
      Input('yearselector', 'value')])
 def update_winner_graph(prepost_or_year, prepost, league, year):
-    df = pd.read_pickle('data/all_data.pickle')
-
-    if prepost_or_year == 'prepost':
-        df = df[(df['corona'] == prepost) & (df['league'] == league)]
-    elif prepost_or_year == 'year':
-        df = df[(df['year'] == year) & (df['league'] == league)]
+    df = read_data(prepost_or_year, prepost, league, year)
 
     df_winner = df['winner'].value_counts().rename_axis('Team').reset_index(name='Counts')
     fig = px.bar(df_winner, x="Team", y="Counts", barmode="group")
@@ -221,12 +216,7 @@ def update_teamwinner_graph(prepost_or_year, prepost, league, year, teamname):
     if not teamname:
         return {}, ''
     else:
-        df = pd.read_pickle('data/all_data.pickle')
-
-        if prepost_or_year == 'prepost':
-            df = df[(df['corona'] == prepost) & (df['league'] == league)]
-        elif prepost_or_year == 'year':
-            df = df[(df['year'] == year) & (df['league'] == league)]
+        df = read_data(prepost_or_year, prepost, league, year)
 
         all_teams = np.sort(df['homeTeamName'].unique())  # Assuming all teams have played home at least once
 
