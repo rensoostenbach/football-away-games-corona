@@ -13,3 +13,13 @@ def fill_df_teams(df, df_teams):
             df_teams[row[2]]['DRAW'] += 1
 
     return df_teams
+
+def read_data(prepost_or_year, prepost, league, year):
+    df = pd.read_pickle('data/all_data.pickle')
+
+    if prepost_or_year == 'prepost':
+        df = df[(df['corona'] == prepost) & (df['league'] == league)]
+    elif prepost_or_year == 'year':
+        df = df[(df['year'] == int(year)) & (df['league'] == league)]
+
+    return df
