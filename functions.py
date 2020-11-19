@@ -1,5 +1,4 @@
 import pandas as pd
-import numpy as np
 
 
 def fill_df_teams(df, df_teams):
@@ -14,12 +13,14 @@ def fill_df_teams(df, df_teams):
 
     return df_teams
 
-def read_data(prepost_or_year, prepost, league, year):
+
+def read_data(prepost_or_year, league, year):
     df = pd.read_pickle('data/all_data.pickle')
 
     if prepost_or_year == 'prepost':
-        df = df[(df['corona'] == prepost) & (df['league'] == league)]
+        df_pre = df[(df['corona'] == 'pre') & (df['league'] == league)]
+        df_post = df[(df['corona'] == 'post') & (df['league'] == league)]
+        return df_pre, df_post
     elif prepost_or_year == 'year':
         df = df[(df['year'] == int(year)) & (df['league'] == league)]
-
-    return df
+        return df
