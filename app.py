@@ -133,18 +133,17 @@ content = html.Div([
               dcc.Graph(id='double_winner_graph_post', style={'display': 'inline-block', 'width': '49%'})
               ], id='double_winner_div'),
 
-    html.Div([
-        html.Div(
-            dcc.Markdown(id='teamwinner_text',
-                         style={'text-align': 'center'})
-        ),
-        html.Div(
-            dcc.Graph(
-                id='teamwinner_graph',
-            )
+    html.Div([dcc.Markdown(id='single_teamwinner_text',
+                           style={'text-align': 'center'}),
+              dcc.Graph(
+                  id='single_teamwinner_graph',
+              )], id='single_teamwinner_div'),
 
-        )
-    ], id='teamwinnerdiv')]
+    html.Div([dcc.Markdown(id='double_teamwinner_text',
+                           style={'text-align': 'center'}),
+              dcc.Graph(id='double_teamwinner_graph_pre', style={'display': 'inline-block', 'width': '49%'}),
+              dcc.Graph(id='double_teamwinner_graph_post', style={'display': 'inline-block', 'width': '49%'})
+              ], id='double_teamwinner_div')]
     , id="page-content", style=CONTENT_STYLE)
 
 app.layout = html.Div([sidebar, content])
@@ -188,6 +187,24 @@ def update_winner_styles(prepost_or_year):
         style_single_winner_div = {'display': 'block'}
         style_double_winner_div = {'display': 'none'}
         return style_single_winner_div, style_double_winner_div
+
+
+@app.callback(
+    Output('single_teamwinner_div', 'style'),
+    Output('double_teamwinner_div', 'style'),
+    [Input('prepost_or_year', 'value'),
+     Input('teamselector', 'value')])
+def update_teamwinner_styles(prepost_or_year, teamname):
+    if not teamname:
+        return {'display': 'none'}, {'display': 'none'}
+    if prepost_or_year == 'prepost':
+        style_double_teamwinner_div = {'display': 'block'}
+        style_single_teamwinner_div = {'display': 'none'}
+        return style_single_teamwinner_div, style_double_teamwinner_div
+    elif prepost_or_year == 'year':
+        style_single_teamwinner_div = {'display': 'block'}
+        style_double_teamwinner_div = {'display': 'none'}
+        return style_single_teamwinner_div, style_double_teamwinner_div
 
 
 
@@ -245,26 +262,15 @@ def update_double_winner_graph(prepost_or_year, league, year):
 
 
 @app.callback(
-    Output('teamwinnerdiv', 'style'),
-    [Input('teamselector', 'value')])
-def update_teamwinner_div(value):
-    if not value:
-        return {'display': 'none'}
-    else:
-        return {'display': 'block'}
-
-
-@app.callback(
-    Output('teamwinner_graph', 'figure'),
-    Output('teamwinner_text', 'children'),
+    Output('single_teamwinner_graph', 'figure'),
+    Output('single_teamwinner_text', 'children'),
     [Input('prepost_or_year', 'value'),
      Input('leagueselector', 'value'),
      Input('yearselector', 'value'),
      Input('teamselector', 'value')])
-def update_teamwinner_graph(prepost_or_year, league, year, teamname):
+def update_single_teamwinner_graph(prepost_or_year, league, year, teamname):
     if prepost_or_year == 'prepost':
-        df_pre, df_post = read_data(prepost_or_year, league, year)
-        df = pd.concat([df_pre, df_post])
+        raise PreventUpdate
     elif prepost_or_year == 'year':
         df = read_data(prepost_or_year, league, year)
 
@@ -285,6 +291,57 @@ def update_teamwinner_graph(prepost_or_year, league, year, teamname):
     teamwinner_text = f'### Home wins, draws and away wins for {teamname}'
 
     return teamwinner_graph, teamwinner_text
+
+
+@app.callback(
+    Output('double_teamwinner_graph_pre', 'figure'),
+    Output('double_teamwinner_graph_post', 'figure'),
+    Output('double_teamwinner_text', 'children'),
+    [Input('prepost_or_year', 'value'),
+     Input('leagueselector', 'value'),
+     Input('yearselector', 'value'),
+     Input('teamselector', 'value')])
+def update_double_teamwinner_graph(prepost_or_year, league, year, teamname):
+    if prepost_or_year == 'year':
+        raise PreventUpdate
+    elif prepost_or_year == 'prepost':
+        df_pre, df_post = read_data(prepost_or_year, league, year)
+        df = pd.concat([df_pre, df_post])
+
+    all_teams = np.sort(df['homeTeamName'].unique())  # Assuming all teams have played home at least once
+
+    if teamname not in all_teams:
+        return {}, ''
+
+    all_teams_pre = np.sort(df_pre['homeTeamName'].unique())
+    dff_pre = df_pre[['winner', 'homeTeamName', 'awayTeamName']]
+    df_teams_pre = pd.DataFrame(0, index=['HOME_TEAM', 'AWAY_TEAM', 'DRAW'], columns=list(all_teams_pre))
+    df_teams_pre = fill_df_teams(dff_pre, df_teams_pre)
+
+    teamwinner_graph_pre = go.Figure(data=[go.Bar(x=df_teams_pre[teamname].index, y=df_teams_pre[teamname].tolist(),
+                                              marker_color=COLORS)])
+
+    update_axes(teamwinner_graph_pre)
+
+    all_teams_post = np.sort(df_post['homeTeamName'].unique())
+    dff_post = df_post[['winner', 'homeTeamName', 'awayTeamName']]
+    df_teams_post = pd.DataFrame(0, index=['HOME_TEAM', 'AWAY_TEAM', 'DRAW'], columns=list(all_teams_post))
+    df_teams_post = fill_df_teams(dff_post, df_teams_post)
+
+    print(df_teams_pre.head(), df_teams_post.head())
+
+    teamwinner_graph_post = go.Figure(data=[go.Bar(x=df_teams_post[teamname].index, y=df_teams_post[teamname].tolist(),
+                                              marker_color=COLORS)])
+
+    print(teamwinner_graph_post)
+    update_axes(teamwinner_graph_post)
+
+    double_teamwinner_text = f'### Home wins, draws and away wins for {teamname}'
+
+    return teamwinner_graph_pre, teamwinner_graph_post, double_teamwinner_text
+
+
+
 
 
 if __name__ == '__main__':
