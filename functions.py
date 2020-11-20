@@ -24,3 +24,8 @@ def read_data(prepost_or_year, league, year):
     elif prepost_or_year == 'year':
         df = df[(df['year'] == int(year)) & (df['league'] == league)]
         return df
+
+
+def update_axes(graph):
+    graph.update_xaxes(title='Home/away win or draw')
+    graph.update_yaxes(title=f'Amount')
