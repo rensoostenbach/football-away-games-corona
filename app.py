@@ -7,11 +7,12 @@ import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
 from dash.exceptions import PreventUpdate
-from functions import fill_df_teams, read_data
+from functions import fill_df_teams, read_data, update_axes
 
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.LUX])
-
 server = app.server
+
+# TODO: Constants in a separete file perhaps
 
 # the style arguments for the sidebar. We use position:fixed and a fixed width
 SIDEBAR_STYLE = {
@@ -33,7 +34,10 @@ CONTENT_STYLE = {
 }
 
 # colors for graphs
-COLORS = ['mediumseagreen', 'lightslategray', 'indianred']
+COLORS = ['mediumseagreen', 'indianred', 'lightslategray']
+
+# reorderlist
+REORDERLIST = ['HOME_TEAM', 'AWAY_TEAM', 'DRAW']
 
 sidebar = html.Div(
     [
@@ -125,8 +129,8 @@ content = html.Div([
 
     html.Div([dcc.Markdown(id='double_winner_text',
                            style={'text-align': 'center'}),
-              dcc.Graph(id='double_winner_graph_pre', style={'display': 'inline-block'}),
-              dcc.Graph(id='double_winner_graph_post', style={'display': 'inline-block'})
+              dcc.Graph(id='double_winner_graph_pre', style={'display': 'inline-block', 'width': '49%'}),
+              dcc.Graph(id='double_winner_graph_post', style={'display': 'inline-block', 'width': '49%'})
               ], id='double_winner_div'),
 
     html.Div([
@@ -198,10 +202,12 @@ def update_single_winner_graph(prepost_or_year, league, year):
         raise PreventUpdate
 
     df = read_data(prepost_or_year, league, year)
-    df_winner = df['winner'].value_counts().sort_index(ascending=False)\
+    df_winner = df['winner'].value_counts().reindex(REORDERLIST)\
         .rename_axis('Winning team').reset_index(name='Counts')
     fig = go.Figure(data=[go.Bar(x=df_winner['Winning team'], y=df_winner['Counts'],
                                      marker_color=COLORS)])
+
+    update_axes(fig)
 
     winner_text = f'## Total number of home wins, draws and away wins in the {league}'
 
@@ -220,15 +226,18 @@ def update_double_winner_graph(prepost_or_year, league, year):
         raise PreventUpdate
 
     df_pre, df_post = read_data(prepost_or_year, league, year)
-    df_winner_pre = df_pre['winner'].value_counts().sort_index(ascending=False)\
+    df_winner_pre = df_pre['winner'].value_counts().reindex(REORDERLIST)\
         .rename_axis('Winning team').reset_index(name='Counts')
-    df_winner_post = df_post['winner'].value_counts().sort_index(ascending=False)\
+    df_winner_post = df_post['winner'].value_counts().reindex(REORDERLIST)\
         .rename_axis('Winning team').reset_index(name='Counts')
 
     fig_pre = go.Figure(data=[go.Bar(x=df_winner_pre['Winning team'], y=df_winner_pre['Counts'],
                                      marker_color=COLORS)])
     fig_post = go.Figure(data=[go.Bar(x=df_winner_post['Winning team'], y=df_winner_post['Counts'],
                                       marker_color=COLORS)])
+
+    update_axes(fig_pre)
+    update_axes(fig_post)
 
     winner_text = f'## Total number of home wins, draws and away wins in the {league} before and after corona.'
 
@@ -253,31 +262,29 @@ def update_teamwinner_div(value):
      Input('yearselector', 'value'),
      Input('teamselector', 'value')])
 def update_teamwinner_graph(prepost_or_year, league, year, teamname):
-    if not teamname:
+    if prepost_or_year == 'prepost':
+        df_pre, df_post = read_data(prepost_or_year, league, year)
+        df = pd.concat([df_pre, df_post])
+    elif prepost_or_year == 'year':
+        df = read_data(prepost_or_year, league, year)
+
+    all_teams = np.sort(df['homeTeamName'].unique())  # Assuming all teams have played home at least once
+
+    if teamname not in all_teams:
         return {}, ''
-    else:
-        if prepost_or_year == 'prepost':
-            df_pre, df_post = read_data(prepost_or_year, league, year)
-            df = pd.concat([df_pre, df_post])
-        elif prepost_or_year == 'year':
-            df = read_data(prepost_or_year, league, year)
 
-        all_teams = np.sort(df['homeTeamName'].unique())  # Assuming all teams have played home at least once
+    dff = df[['winner', 'homeTeamName', 'awayTeamName']]
+    df_teams = pd.DataFrame(0, index=['HOME_TEAM', 'AWAY_TEAM', 'DRAW'], columns=list(all_teams))
+    df_teams = fill_df_teams(dff, df_teams)
 
-        dff = df[['winner', 'homeTeamName', 'awayTeamName']]
-        df_teams = pd.DataFrame(0, index=['HOME_TEAM', 'DRAW', 'AWAY_TEAM'], columns=list(all_teams))
-        df_teams = fill_df_teams(dff, df_teams)
+    teamwinner_graph = go.Figure(data=[go.Bar(x=df_teams[teamname].index, y=df_teams[teamname].tolist(),
+                                              marker_color=COLORS)])
 
-        teamwinner_graph = go.Figure(data=[go.Bar(x=df_teams[teamname].index, y=df_teams[teamname].tolist(),
-                                                  marker_color=COLORS)])
+    update_axes(teamwinner_graph)
 
-        # teamwinner_graph = px.bar(df_teams, x=df_teams[teamname].index, y=df_teams[teamname].tolist(), barmode="group")
-        teamwinner_graph.update_xaxes(title='Home/away win or draw')
-        teamwinner_graph.update_yaxes(title=f'Amount of home/away wins or draw for {teamname}')
+    teamwinner_text = f'### Home wins, draws and away wins for {teamname}'
 
-        teamwinner_text = f'### Home wins, draws and away wins for {teamname}'
-
-        return teamwinner_graph, teamwinner_text
+    return teamwinner_graph, teamwinner_text
 
 
 if __name__ == '__main__':
