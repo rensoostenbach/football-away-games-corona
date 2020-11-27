@@ -209,15 +209,31 @@ def update_avg_points_style(prepost_or_year):
     Output('single_teamwinner_div', 'style'),
     Output('double_teamwinner_div', 'style'),
     [Input('prepost_or_year', 'value'),
-     Input('teamselector', 'value')])
-def update_teamwinner_styles(prepost_or_year, teamname):
+     Input('leagueselector', 'value'),
+     Input('teamselector', 'value'),
+     Input('yearselector', 'value')])
+def update_teamwinner_styles(prepost_or_year, league, teamname, year):
     if not teamname:
         return {'display': 'none'}, {'display': 'none'}
+
     if prepost_or_year == 'prepost':
+        # Below 5 lines are for making the team graph disappear when changing leagues
+        df_pre, df_post = read_data(prepost_or_year, league, year)
+        df = pd.concat([df_pre, df_post])
+        all_teams = np.sort(df['homeTeamName'].unique())  # Assuming all teams have played home at least once
+        if teamname not in all_teams:
+            return {'display': 'none'}, {'display': 'none'}
+
         style_double_teamwinner_div = {'display': 'block'}
         style_single_teamwinner_div = {'display': 'none'}
         return style_single_teamwinner_div, style_double_teamwinner_div
     elif prepost_or_year == 'year':
+        # Below 5 lines are for making the team graph disappear when changing leagues
+        df = read_data(prepost_or_year, league, year)
+        all_teams = np.sort(df['homeTeamName'].unique())  # Assuming all teams have played home at least once
+        if teamname not in all_teams:
+            return {'display': 'none'}, {'display': 'none'}
+
         style_single_teamwinner_div = {'display': 'block'}
         style_double_teamwinner_div = {'display': 'none'}
         return style_single_teamwinner_div, style_double_teamwinner_div
