@@ -343,10 +343,9 @@ def update_avg_points_graph(prepost_or_year, league, year):
 
     updatemenus = list([
         dict(active=0,
-             type="buttons",
+             showactive=True,
              x=0.57,
              y=1.2,
-             direction="right",
              buttons=list([
                  dict(label="Average per matchday",
                       method="update",
