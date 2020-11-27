@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
 from dash.exceptions import PreventUpdate
-from functions import fill_df_teams, read_data, update_axes
+from functions import fill_df_teams, read_data, update_axes, preprocess_avg_points, fill_points_df
 
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.LUX])
 server = app.server
@@ -133,6 +133,12 @@ content = html.Div([
               dcc.Graph(id='double_winner_graph_post', style={'display': 'inline-block', 'width': '49%'})
               ], id='double_winner_div'),
 
+    html.Div([dcc.Markdown(id='avg_points_text',
+                           style={'text-align': 'center'}),
+              dcc.Graph(
+                  id='avg_points_graph',
+              )], id='avg_points_div'),
+
     html.Div([dcc.Markdown(id='single_teamwinner_text',
                            style={'text-align': 'center'}),
               dcc.Graph(
@@ -190,6 +196,16 @@ def update_winner_styles(prepost_or_year):
 
 
 @app.callback(
+    Output('avg_points_div', 'style'),
+    [Input('prepost_or_year', 'value')])
+def update_avg_points_style(prepost_or_year):
+    if prepost_or_year == 'prepost':
+        return {'display': 'block'}
+    elif prepost_or_year == 'year':
+        return {'display': 'none'}
+
+
+@app.callback(
     Output('single_teamwinner_div', 'style'),
     Output('double_teamwinner_div', 'style'),
     [Input('prepost_or_year', 'value'),
@@ -205,7 +221,6 @@ def update_teamwinner_styles(prepost_or_year, teamname):
         style_single_teamwinner_div = {'display': 'block'}
         style_double_teamwinner_div = {'display': 'none'}
         return style_single_teamwinner_div, style_double_teamwinner_div
-
 
 
 @app.callback(
@@ -262,6 +277,54 @@ def update_double_winner_graph(prepost_or_year, league, year):
 
 
 @app.callback(
+    Output('avg_points_graph', 'figure'),
+    Output('avg_points_text', 'children'),
+    [Input('prepost_or_year', 'value'),
+     Input('leagueselector', 'value'),
+     Input('yearselector', 'value')])
+def update_avg_points_graph(prepost_or_year, league, year):
+    if prepost_or_year == 'year':
+        raise PreventUpdate
+
+    df_pre, df_post = read_data(prepost_or_year, league, year)
+    df_pre = preprocess_avg_points(df_pre)
+    df_post = preprocess_avg_points(df_post)
+
+    # Fix for weird cases where matches from earlier match days were played in post corona time
+    df_post = df_post[~df_post['yearMatchday'].isin(df_pre['yearMatchday'].unique())]
+
+    points_df_pre = pd.DataFrame(0, index=df_pre['yearMatchday'].unique(),
+                                 columns=['homeTeamPoints', 'awayTeamPoints', 'numberOfMatches'])
+    points_df_post = pd.DataFrame(0, index=df_post['yearMatchday'].unique(),
+                                  columns=['homeTeamPoints', 'awayTeamPoints', 'numberOfMatches'])
+
+    points_df_pre = fill_points_df(df_pre, points_df_pre)
+    points_df_post = fill_points_df(df_post, points_df_post)
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=points_df_pre.index, y=points_df_pre['homeAvgPoints'],
+                             mode='lines',
+                             name='Average home team points before corona',
+                             line=dict(color='mediumseagreen')))
+    fig.add_trace(go.Scatter(x=points_df_pre.index, y=points_df_pre['awayAvgPoints'],
+                             mode='lines',
+                             name='Average away team points before corona',
+                             line=dict(color='indianred')))
+    fig.add_trace(go.Scatter(x=points_df_post.index, y=points_df_post['homeAvgPoints'],
+                             mode='lines',
+                             name='Average home team points after corona',
+                             line=dict(color='seagreen')))
+    fig.add_trace(go.Scatter(x=points_df_post.index, y=points_df_post['awayAvgPoints'],
+                             mode='lines',
+                             name='Average away team points after corona',
+                             line=dict(color='firebrick')))
+
+    text = f'## Average points for home and away teams in the {league}'
+
+    return fig, text
+
+
+@app.callback(
     Output('single_teamwinner_graph', 'figure'),
     Output('single_teamwinner_text', 'children'),
     [Input('prepost_or_year', 'value'),
@@ -311,7 +374,7 @@ def update_double_teamwinner_graph(prepost_or_year, league, year, teamname):
     all_teams = np.sort(df['homeTeamName'].unique())  # Assuming all teams have played home at least once
 
     if teamname not in all_teams:
-        return {}, ''
+        return {}, {}, ''
 
     all_teams_pre = np.sort(df_pre['homeTeamName'].unique())
     dff_pre = df_pre[['winner', 'homeTeamName', 'awayTeamName']]
@@ -328,12 +391,9 @@ def update_double_teamwinner_graph(prepost_or_year, league, year, teamname):
     df_teams_post = pd.DataFrame(0, index=['HOME_TEAM', 'AWAY_TEAM', 'DRAW'], columns=list(all_teams_post))
     df_teams_post = fill_df_teams(dff_post, df_teams_post)
 
-    print(df_teams_pre.head(), df_teams_post.head())
-
     teamwinner_graph_post = go.Figure(data=[go.Bar(x=df_teams_post[teamname].index, y=df_teams_post[teamname].tolist(),
                                               marker_color=COLORS)])
 
-    print(teamwinner_graph_post)
     update_axes(teamwinner_graph_post)
 
     double_teamwinner_text = f'### Home wins, draws and away wins for {teamname}'
