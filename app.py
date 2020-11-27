@@ -319,6 +319,9 @@ def update_avg_points_graph(prepost_or_year, league, year):
                              name='Average away team points after corona',
                              line=dict(color='firebrick')))
 
+    fig.update_xaxes(title='Year and matchday')
+    fig.update_yaxes(title=f'Points')
+
     text = f'## Average points for home and away teams in the {league}'
 
     return fig, text
