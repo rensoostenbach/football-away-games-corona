@@ -301,26 +301,65 @@ def update_avg_points_graph(prepost_or_year, league, year):
     points_df_pre = fill_points_df(df_pre, points_df_pre)
     points_df_post = fill_points_df(df_post, points_df_post)
 
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=points_df_pre.index, y=points_df_pre['homeAvgPoints'],
+    trace1_1 = go.Scatter(x=points_df_pre.index, y=points_df_pre['homeAvgPoints'],
                              mode='lines',
                              name='Average home team points before corona',
-                             line=dict(color='mediumseagreen')))
-    fig.add_trace(go.Scatter(x=points_df_pre.index, y=points_df_pre['awayAvgPoints'],
+                             line=dict(color='mediumseagreen'))
+    trace1_2 = go.Scatter(x=points_df_pre.index, y=points_df_pre['awayAvgPoints'],
                              mode='lines',
                              name='Average away team points before corona',
-                             line=dict(color='indianred')))
-    fig.add_trace(go.Scatter(x=points_df_post.index, y=points_df_post['homeAvgPoints'],
+                             line=dict(color='indianred'))
+    trace1_3 = go.Scatter(x=points_df_post.index, y=points_df_post['homeAvgPoints'],
                              mode='lines',
                              name='Average home team points after corona',
-                             line=dict(color='seagreen')))
-    fig.add_trace(go.Scatter(x=points_df_post.index, y=points_df_post['awayAvgPoints'],
+                             line=dict(color='seagreen'))
+    trace1_4 = go.Scatter(x=points_df_post.index, y=points_df_post['awayAvgPoints'],
                              mode='lines',
                              name='Average away team points after corona',
-                             line=dict(color='firebrick')))
+                             line=dict(color='firebrick'))
 
-    fig.update_xaxes(title='Year and matchday')
-    fig.update_yaxes(title=f'Points')
+    trace2_1 = go.Scatter(x=points_df_pre.index, y=points_df_pre['maHomePoints'],
+                             mode='lines',
+                             name='Average home team points before corona',
+                             line=dict(color='mediumseagreen'),
+                             visible=False)
+    trace2_2 = go.Scatter(x=points_df_pre.index, y=points_df_pre['maAwayPoints'],
+                             mode='lines',
+                             name='Average away team points before corona',
+                             line=dict(color='indianred'),
+                             visible=False)
+    trace2_3 = go.Scatter(x=points_df_post.index, y=points_df_post['maHomePoints'],
+                             mode='lines',
+                             name='Average home team points after corona',
+                             line=dict(color='seagreen'),
+                             visible=False)
+    trace2_4 = go.Scatter(x=points_df_post.index, y=points_df_post['maAwayPoints'],
+                             mode='lines',
+                             name='Average away team points after corona',
+                             line=dict(color='firebrick'),
+                             visible=False)
+
+    data = [trace1_1, trace1_2, trace1_3, trace1_4, trace2_1, trace2_2, trace2_3,trace2_4]
+
+    updatemenus = list([
+        dict(active=0,
+             showactive=True,
+             type="buttons",
+             buttons=list([
+                 dict(label="Average per matchday",
+                      method="update",
+                      args=[{"visible": [True, True, True, True, False, False, False, False]}]),
+                 dict(label="Rolling average over 3 matchdays",
+                      method="update",
+                      args=[{"visible": [False, False, False, False, True, True, True, True]}])
+             ]))])
+
+    layout = dict(showlegend=True,
+                  xaxis=dict(title="Year and matchday"),
+                  yaxis=dict(title="Points"),
+                  updatemenus=updatemenus)
+
+    fig = dict(data=data, layout=layout)
 
     text = f'## Average points for home and away teams in the {league}'
 

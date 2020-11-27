@@ -1,4 +1,5 @@
 import pandas as pd
+import plotly.graph_objects as go
 
 
 def fill_df_teams(df, df_teams):
@@ -49,5 +50,8 @@ def fill_points_df(df, points_df):
 
     points_df['homeAvgPoints'] = points_df['homeTeamPoints'] / points_df['numberOfMatches']
     points_df['awayAvgPoints'] = points_df['awayTeamPoints'] / points_df['numberOfMatches']
+
+    points_df['maHomePoints'] = points_df.iloc[:, 3].rolling(window=3).mean()
+    points_df['maAwayPoints'] = points_df.iloc[:, 4].rolling(window=3).mean()
 
     return points_df
